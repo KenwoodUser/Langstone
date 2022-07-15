@@ -303,6 +303,10 @@ float sMeterPeak;
 struct iio_context *plutoctx;
 struct iio_device *plutophy;
 
+bool	bwModified = true;
+int 	centreLinePosition;
+int 	centreShift = 0;
+
 //UDP server to receive FFT data from GNU RAdio
 
 #define RXPORT 7373
@@ -499,7 +503,7 @@ void waterfall()
   int bwbaroffset;
   float scaling;
   int fftref;
-  int centreShift=0;
+  int p = 0;
 
   
       //check if data avilable to read
@@ -579,8 +583,7 @@ void waterfall()
  
         baselevel=fftref-80;
         scaling = 255.0/(float)(fftref-baselevel);
-        
-        
+               
     
         //draw waterfall
         for(int r=0;r<rows;r++)
@@ -597,55 +600,72 @@ void waterfall()
           }
         }
     
-    
+        
+        if( bwModified ) { // draw only if the bandwidth is modified 
+		
+			//draw Bandwidth indicator
+			p = points >> 1;
+			  
+			if (((mode==CW) || (mode==CWN)) && (transmitting==0 && satSplitMode()== 0)) {
+				centreShift=800/HzPerBin;
+			} else {
+				centreShift=0;          
+			}
+			
+			centreLinePosition = FFTX + p + centreShift;
+			
+
+			// erase Bw indicator
+			
+			drawLine(FFTX + p - 89, FFTY-spectrum_rows - 5, FFTX + p + 89, FFTY-spectrum_rows - 5, 0, 0, 0);
+			drawLine(FFTX + p - 89, FFTY-spectrum_rows - 4, FFTX + p + 89, FFTY-spectrum_rows - 4, 0, 0, 0);
+			drawLine(FFTX + p - 89, FFTY-spectrum_rows - 3, FFTX + p + 89, FFTY-spectrum_rows - 3, 0, 0, 0);
+			drawLine(FFTX + p - 89, FFTY-spectrum_rows - 2, FFTX + p + 89, FFTY-spectrum_rows - 2, 0, 0, 0);
+			drawLine(FFTX + p - 89, FFTY-spectrum_rows - 1, FFTX + p + 89, FFTY-spectrum_rows - 1, 0, 0, 0);
+				
+			
+			// draw BW indicator in white
+			drawLine(p+FFTX+bwBarStart-bwbaroffset, FFTY-spectrum_rows - 5, p+FFTX+bwBarStart-bwbaroffset, FFTY-spectrum_rows -1, 255, 255, 255);
+			drawLine(p+FFTX+bwBarStart-bwbaroffset, FFTY-spectrum_rows - 5, p+FFTX+bwBarEnd-bwbaroffset, FFTY-spectrum_rows - 5, 255, 255, 255);
+			drawLine(p+FFTX+bwBarEnd-bwbaroffset, FFTY-spectrum_rows - 5, p+FFTX+bwBarEnd-bwbaroffset, FFTY-spectrum_rows - 1, 255, 255, 255);  
+			//draw centre line (displayed frequency)
+			drawLine(centreLinePosition, FFTY, centreLinePosition, FFTY-spectrum_rows - 4, 255, 255, 255);
+			
+			//draw Scale in white
+			drawLine(FFTX, FFTY + 1, FFTX + points, FFTY + 1, 255, 255, 255);		
+			setForeColour(255, 255, 255);
+			textSize=1;
+			gotoXY(p+centreShift+FFTX-12,FFTY+8);
+			displayStr(" 0 ");
+			gotoXY(p+centreShift+FFTX-10000/HzPerBin-24,FFTY+8);
+			displayStr(" -10k ");
+			gotoXY(p+centreShift+FFTX-20000/HzPerBin-24,FFTY+8);
+			displayStr(" -20k ");
+			gotoXY(p+centreShift+FFTX+10000/HzPerBin-24,FFTY+8);
+			displayStr(" +10k ");                                                                                             
+			gotoXY(p+centreShift+FFTX+20000/HzPerBin-24,FFTY+8);
+			displayStr(" +20k ");
+			  
+			bwModified = false;
+		}
+		
         //draw spectrum bars
         
-        scaling = spectrum_rows/(float)(fftref-baselevel);
-        for(int p=0;p<points-1;p++)
-        {  
-            //limit values displayed to range specified
-            if (buf[p][0]<baselevel) buf[p][0]=baselevel;
-            if (buf[p][0]>fftref) buf[p][0]=fftref;
+        scaling = spectrum_rows / (float)(fftref - baselevel);
+        for(int p=0; p < points-1; p++) { 
+			if ((FFTX + p) != centreLinePosition) {
+				//limit values displayed to range specified
+				if (buf[p][0]<baselevel) buf[p][0]=baselevel;
+				if (buf[p][0]>fftref) buf[p][0]=fftref;
     
-            //scale to display height
-            level = (baselevel)*scaling;   
-            level = (buf[p][0]-baselevel)*scaling;
-            drawLine(p+FFTX, FFTY, p+FFTX, FFTY-level,0,255,0);                     //draw the signal bar in Green
-            drawLine(p+FFTX, FFTY-level-1, p+FFTX, FFTY-spectrum_rows,0,0,0);       // fill the rest of the bar with black  (saves having to clear the whole area)
-          }
-          //draw Bandwidth indicator
-          int p=points/2;
-          
-          if (((mode==CW) || (mode==CWN)) && (transmitting==0 && satSplitMode()== 0))
-          {
-           centreShift=800/HzPerBin;
-          }
-          else
-          {
-           centreShift=0;          
-          }
+				//scale to display height
+				level = (baselevel)*scaling;   
+				level = (buf[p][0]-baselevel)*scaling;
+				drawLine(p+FFTX, FFTY, p+FFTX, FFTY-level, 55, 155, 255);               // draw the spectrum bars in light blue
+				drawLine(p+FFTX, FFTY-level-1, p+FFTX, FFTY-spectrum_rows,0,0,0);       // fill the rest of the bar with black  (saves having to clear the whole area)
+			}
+        }
 
-          drawLine(p+FFTX+bwBarStart-bwbaroffset, FFTY-spectrum_rows+5, p+FFTX+bwBarStart-bwbaroffset, FFTY-spectrum_rows,255,140,0);
-          drawLine(p+FFTX+bwBarStart-bwbaroffset, FFTY-spectrum_rows, p+FFTX+bwBarEnd-bwbaroffset, FFTY-spectrum_rows,255,140,0);
-          drawLine(p+FFTX+bwBarEnd-bwbaroffset, FFTY-spectrum_rows+5, p+FFTX+bwBarEnd-bwbaroffset, FFTY-spectrum_rows,255,140,0);  
-          //draw centre line (displayed frequency)
-          drawLine(p+FFTX+centreShift, FFTY-10, p+FFTX+centreShift, FFTY-spectrum_rows,255,0,0);  
-          
-          
-          //draw Scale. 
-          setForeColour(0,255,0);
-          textSize=1;
-          gotoXY(p+centreShift+FFTX-12,FFTY+8);
-          displayStr(" 0 ");
-          gotoXY(p+centreShift+FFTX-10000/HzPerBin-24,FFTY+8);
-          displayStr(" -10k ");
-          gotoXY(p+centreShift+FFTX-20000/HzPerBin-24,FFTY+8);
-          displayStr(" -20k ");
-          gotoXY(p+centreShift+FFTX+10000/HzPerBin-24,FFTY+8);
-          displayStr(" +10k ");                                                                                             
-          gotoXY(p+centreShift+FFTX+20000/HzPerBin-24,FFTY+8);
-          displayStr(" +20k ");
- 
 
           if((transmitting==0) || (satSplitMode()==1))
           {
@@ -2303,6 +2323,7 @@ void setRxFilter(int low,int high)
   
   bwBarStart=low/HzPerBin;
   bwBarEnd=high/HzPerBin;
+  bwModified = true;
   
 }
 
